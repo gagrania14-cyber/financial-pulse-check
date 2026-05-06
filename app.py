@@ -425,14 +425,19 @@ if st.session_state.step == "input":
     # Check if data has been loaded (any non-zero values)
     has_data = any(any(v != 0 for v in st.session_state.data[k]) for k in ALL_KEYS)
     
+    if not has_data:
+        st.markdown("#### Choose how to upload your financial data")
+        st.markdown("")
+    
     # Upload options
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("#### 📄 Upload Financial Statements (PDF)")
-        pdf_file = st.file_uploader("Annual reports or management accounts", type=["pdf"], key="pdf_upload")
+        st.markdown("#### 📄 Upload Financial Statements")
+        st.caption("PDF — Annual reports, audited financials, or management accounts")
+        pdf_file = st.file_uploader("Upload PDF", type=["pdf"], key="pdf_upload", label_visibility="collapsed")
         if pdf_file:
-            with st.spinner("Extracting data with AI..."):
+            with st.spinner("Extracting data with AI — this may take a moment..."):
                 extracted = extract_from_pdf(pdf_file.read())
                 if extracted:
                     for key in ALL_KEYS:
@@ -441,8 +446,9 @@ if st.session_state.step == "input":
                     st.rerun()
     
     with col2:
-        st.markdown("#### 📊 Upload Filled Template (CSV)")
-        csv_file = st.file_uploader("Download template, fill, upload back", type=["csv"], key="csv_upload")
+        st.markdown("#### 📊 Upload Filled Template")
+        st.caption("CSV — Download template below, fill in your numbers, upload back")
+        csv_file = st.file_uploader("Upload CSV", type=["csv"], key="csv_upload", label_visibility="collapsed")
         if csv_file:
             try:
                 df = pd.read_csv(csv_file)
@@ -464,77 +470,50 @@ if st.session_state.step == "input":
                 st.rerun()
             except Exception as e:
                 st.error(f"Failed to parse CSV: {e}")
+        
+        # Download template button
+        template_csv = "Line Item,Year 1 (Oldest),Year 2,Year 3 (Latest)\n"
+        template_rows = [
+            "Revenue,,,,", "Cost of Goods Sold (COGS),,,,", "Gross Profit,,,,",
+            "SG&A / Operating Expenses,,,,", "EBITDA,,,,", "Depreciation & Amortization,,,,",
+            "Interest Expense,,,,", "Net Profit,,,,",
+            "Accounts Receivable (AR),,,,", "Inventory,,,,", "Accounts Payable (AP),,,,",
+            "Total Debt,,,,", "Cash & Equivalents,,,,", "Total Assets,,,,",
+            "Operating Cash Flow (OCF),,,,", "Capital Expenditure (Capex),,,,",
+            "Number of Customers,,,,", "Revenue from Top Customer,,,,",
+            "Revenue from Top 5 Customers,,,,", "Related Party Transactions,,,,"
+        ]
+        template_csv += "\n".join(template_rows)
+        st.download_button(
+            label="⬇️ Download Blank Template (CSV)",
+            data=template_csv,
+            file_name="Financial_Pulse_Check_Template.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
     
-    # If data is loaded, show summary + prominent Run button
+    # If data is loaded, show summary + Run button
     if has_data:
         st.divider()
-        st.success("✅ Financial data loaded. Review the summary below and click **Run Pulse Check** when ready.")
+        st.success("✅ Financial data loaded successfully. Review the summary and click **Run Pulse Check**.")
         
-        # Quick summary table
-        summary_items = ["revenue", "ebitda", "net_profit", "ocf", "cash", "total_debt"]
-        summary_labels = ["Revenue", "EBITDA", "Net Profit", "Operating Cash Flow", "Cash", "Total Debt"]
-        
-        summary_df = pd.DataFrame({
-            "Line Item": summary_labels,
-            "Year 1": [fmt_num(st.session_state.data[k][0]) for k in summary_items],
-            "Year 2": [fmt_num(st.session_state.data[k][1]) for k in summary_items],
-            "Year 3": [fmt_num(st.session_state.data[k][2]) for k in summary_items],
-        })
-        st.dataframe(summary_df, use_container_width=True, hide_index=True)
-        
-        if st.button("🔍 Run Pulse Check →", type="primary", use_container_width=True, key="run_top"):
-            st.session_state.step = "results"
-            st.rerun()
-        
-        st.divider()
-    
-    # Manual input — collapsed if data already loaded
-    if has_data:
-        with st.expander("✏️ Review / Edit All Data", expanded=False):
-            for section, items in LINE_ITEMS.items():
-                st.markdown(f"**{section}**")
-                cols = st.columns([3, 1.5, 1.5, 1.5])
-                cols[0].markdown("**Line Item**")
-                cols[1].markdown("**Year 1 (Oldest)**")
-                cols[2].markdown("**Year 2**")
-                cols[3].markdown("**Year 3 (Latest)**")
-                
-                for key, label in items:
-                    cols = st.columns([3, 1.5, 1.5, 1.5])
-                    cols[0].markdown(f"<div style='padding-top:8px'>{label}</div>", unsafe_allow_html=True)
-                    for yr in range(3):
-                        st.session_state.data[key][yr] = cols[yr + 1].number_input(
-                            f"{label}_Y{yr+1}", value=float(st.session_state.data[key][yr]),
-                            label_visibility="collapsed", key=f"input_{key}_{yr}"
-                        )
-            
-            st.divider()
-            if st.button("🔍 Run Pulse Check →", type="primary", use_container_width=True, key="run_bottom"):
-                st.session_state.step = "results"
-                st.rerun()
-    else:
-        st.divider()
-        st.markdown("#### ✏️ Manual Input")
-        
+        # Full data review table
+        review_data = []
         for section, items in LINE_ITEMS.items():
-            st.markdown(f"**{section}**")
-            cols = st.columns([3, 1.5, 1.5, 1.5])
-            cols[0].markdown("**Line Item**")
-            cols[1].markdown("**Year 1 (Oldest)**")
-            cols[2].markdown("**Year 2**")
-            cols[3].markdown("**Year 3 (Latest)**")
-            
             for key, label in items:
-                cols = st.columns([3, 1.5, 1.5, 1.5])
-                cols[0].markdown(f"<div style='padding-top:8px'>{label}</div>", unsafe_allow_html=True)
-                for yr in range(3):
-                    st.session_state.data[key][yr] = cols[yr + 1].number_input(
-                        f"{label}_Y{yr+1}", value=float(st.session_state.data[key][yr]),
-                        label_visibility="collapsed", key=f"input_{key}_{yr}"
-                    )
+                review_data.append({
+                    "Section": section,
+                    "Line Item": label,
+                    "Year 1": fmt_num(st.session_state.data[key][0]),
+                    "Year 2": fmt_num(st.session_state.data[key][1]),
+                    "Year 3": fmt_num(st.session_state.data[key][2]),
+                })
         
-        st.divider()
-        if st.button("🔍 Run Pulse Check →", type="primary", use_container_width=True, key="run_manual"):
+        review_df = pd.DataFrame(review_data)
+        st.dataframe(review_df, use_container_width=True, hide_index=True, height=400)
+        
+        st.markdown("")
+        if st.button("🔍 Run Pulse Check →", type="primary", use_container_width=True):
             st.session_state.step = "results"
             st.rerun()
 
