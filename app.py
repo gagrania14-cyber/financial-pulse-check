@@ -395,6 +395,10 @@ if "company_name" not in st.session_state:
     st.session_state.company_name = ""
 if "currency" not in st.session_state:
     st.session_state.currency = "USD"
+if "pdf_processed" not in st.session_state:
+    st.session_state.pdf_processed = False
+if "csv_processed" not in st.session_state:
+    st.session_state.csv_processed = False
 
 # ── SIDEBAR ──────────────────────────────────────────────────────────
 with st.sidebar:
@@ -413,6 +417,8 @@ with st.sidebar:
         st.session_state.data = {k: [0, 0, 0] for k in ALL_KEYS}
         st.session_state.narrative = None
         st.session_state.step = "input"
+        st.session_state.pdf_processed = False
+        st.session_state.csv_processed = False
         st.rerun()
     
     st.divider()
@@ -436,20 +442,21 @@ if st.session_state.step == "input":
         st.markdown("#### 📄 Upload Financial Statements")
         st.caption("PDF — Annual reports, audited financials, or management accounts")
         pdf_file = st.file_uploader("Upload PDF", type=["pdf"], key="pdf_upload", label_visibility="collapsed")
-        if pdf_file:
+        if pdf_file and not st.session_state.get("pdf_processed"):
             with st.spinner("Extracting data with AI — this may take a moment..."):
                 extracted = extract_from_pdf(pdf_file.read())
                 if extracted:
                     for key in ALL_KEYS:
                         if key in extracted and isinstance(extracted[key], list):
                             st.session_state.data[key] = [float(v) for v in extracted[key]]
+                    st.session_state.pdf_processed = True
                     st.rerun()
     
     with col2:
         st.markdown("#### 📊 Upload Filled Template")
         st.caption("CSV — Download template below, fill in your numbers, upload back")
         csv_file = st.file_uploader("Upload CSV", type=["csv"], key="csv_upload", label_visibility="collapsed")
-        if csv_file:
+        if csv_file and not st.session_state.get("csv_processed"):
             try:
                 df = pd.read_csv(csv_file)
                 mapping = {
@@ -467,6 +474,7 @@ if st.session_state.step == "input":
                     key = mapping.get(label)
                     if key:
                         st.session_state.data[key] = [safe(row.iloc[1]), safe(row.iloc[2]), safe(row.iloc[3])]
+                st.session_state.csv_processed = True
                 st.rerun()
             except Exception as e:
                 st.error(f"Failed to parse CSV: {e}")
