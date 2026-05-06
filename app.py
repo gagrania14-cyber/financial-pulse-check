@@ -422,6 +422,9 @@ with st.sidebar:
 # ── STEP: Input ──────────────────────────────────────────────────────
 if st.session_state.step == "input":
     
+    # Check if data has been loaded (any non-zero values)
+    has_data = any(any(v != 0 for v in st.session_state.data[k]) for k in ALL_KEYS)
+    
     # Upload options
     col1, col2 = st.columns(2)
     
@@ -435,7 +438,6 @@ if st.session_state.step == "input":
                     for key in ALL_KEYS:
                         if key in extracted and isinstance(extracted[key], list):
                             st.session_state.data[key] = [float(v) for v in extracted[key]]
-                    st.success("Data extracted! Review below and click 'Run Pulse Check'.")
                     st.rerun()
     
     with col2:
@@ -459,36 +461,82 @@ if st.session_state.step == "input":
                     key = mapping.get(label)
                     if key:
                         st.session_state.data[key] = [safe(row.iloc[1]), safe(row.iloc[2]), safe(row.iloc[3])]
-                st.success("Template loaded! Review below.")
                 st.rerun()
             except Exception as e:
                 st.error(f"Failed to parse CSV: {e}")
     
-    st.divider()
-    st.markdown("#### ✏️ Manual Input — or review uploaded data")
-    
-    for section, items in LINE_ITEMS.items():
-        st.markdown(f"**{section}**")
-        cols = st.columns([3, 1.5, 1.5, 1.5])
-        cols[0].markdown("**Line Item**")
-        cols[1].markdown("**Year 1 (Oldest)**")
-        cols[2].markdown("**Year 2**")
-        cols[3].markdown("**Year 3 (Latest)**")
+    # If data is loaded, show summary + prominent Run button
+    if has_data:
+        st.divider()
+        st.success("✅ Financial data loaded. Review the summary below and click **Run Pulse Check** when ready.")
         
-        for key, label in items:
+        # Quick summary table
+        summary_items = ["revenue", "ebitda", "net_profit", "ocf", "cash", "total_debt"]
+        summary_labels = ["Revenue", "EBITDA", "Net Profit", "Operating Cash Flow", "Cash", "Total Debt"]
+        
+        summary_df = pd.DataFrame({
+            "Line Item": summary_labels,
+            "Year 1": [fmt_num(st.session_state.data[k][0]) for k in summary_items],
+            "Year 2": [fmt_num(st.session_state.data[k][1]) for k in summary_items],
+            "Year 3": [fmt_num(st.session_state.data[k][2]) for k in summary_items],
+        })
+        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+        
+        if st.button("🔍 Run Pulse Check →", type="primary", use_container_width=True, key="run_top"):
+            st.session_state.step = "results"
+            st.rerun()
+        
+        st.divider()
+    
+    # Manual input — collapsed if data already loaded
+    if has_data:
+        with st.expander("✏️ Review / Edit All Data", expanded=False):
+            for section, items in LINE_ITEMS.items():
+                st.markdown(f"**{section}**")
+                cols = st.columns([3, 1.5, 1.5, 1.5])
+                cols[0].markdown("**Line Item**")
+                cols[1].markdown("**Year 1 (Oldest)**")
+                cols[2].markdown("**Year 2**")
+                cols[3].markdown("**Year 3 (Latest)**")
+                
+                for key, label in items:
+                    cols = st.columns([3, 1.5, 1.5, 1.5])
+                    cols[0].markdown(f"<div style='padding-top:8px'>{label}</div>", unsafe_allow_html=True)
+                    for yr in range(3):
+                        st.session_state.data[key][yr] = cols[yr + 1].number_input(
+                            f"{label}_Y{yr+1}", value=float(st.session_state.data[key][yr]),
+                            label_visibility="collapsed", key=f"input_{key}_{yr}"
+                        )
+            
+            st.divider()
+            if st.button("🔍 Run Pulse Check →", type="primary", use_container_width=True, key="run_bottom"):
+                st.session_state.step = "results"
+                st.rerun()
+    else:
+        st.divider()
+        st.markdown("#### ✏️ Manual Input")
+        
+        for section, items in LINE_ITEMS.items():
+            st.markdown(f"**{section}**")
             cols = st.columns([3, 1.5, 1.5, 1.5])
-            cols[0].markdown(f"<div style='padding-top:8px'>{label}</div>", unsafe_allow_html=True)
-            for yr in range(3):
-                st.session_state.data[key][yr] = cols[yr + 1].number_input(
-                    f"{label}_Y{yr+1}", value=float(st.session_state.data[key][yr]),
-                    label_visibility="collapsed", key=f"input_{key}_{yr}"
-                )
-    
-    st.divider()
-    
-    if st.button("🔍 Run Pulse Check →", type="primary", use_container_width=True):
-        st.session_state.step = "results"
-        st.rerun()
+            cols[0].markdown("**Line Item**")
+            cols[1].markdown("**Year 1 (Oldest)**")
+            cols[2].markdown("**Year 2**")
+            cols[3].markdown("**Year 3 (Latest)**")
+            
+            for key, label in items:
+                cols = st.columns([3, 1.5, 1.5, 1.5])
+                cols[0].markdown(f"<div style='padding-top:8px'>{label}</div>", unsafe_allow_html=True)
+                for yr in range(3):
+                    st.session_state.data[key][yr] = cols[yr + 1].number_input(
+                        f"{label}_Y{yr+1}", value=float(st.session_state.data[key][yr]),
+                        label_visibility="collapsed", key=f"input_{key}_{yr}"
+                    )
+        
+        st.divider()
+        if st.button("🔍 Run Pulse Check →", type="primary", use_container_width=True, key="run_manual"):
+            st.session_state.step = "results"
+            st.rerun()
 
 # ── STEP: Results ────────────────────────────────────────────────────
 elif st.session_state.step == "results":
